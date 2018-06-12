@@ -35,5 +35,5 @@ if __name__ == '__main__':
         # render all agent views
         env.render()
         # display rewards
-        #for agent in env.world.agents:
-        #    print(agent.name + " reward: %0.3f" % env._get_reward(agent))
+        for agent in env.world.agents:
+            print(agent.name + " reward: %0.3f" % env._get_reward(agent))

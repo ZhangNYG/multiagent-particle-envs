@@ -8,40 +8,61 @@ class Scenario(BaseScenario):
         world = World()
         # set any world properties first
         world.dim_c = 2
-        num_agents = 3
-        num_landmarks = 3
+        num_agents = 2
+        num_landmarks = 2
+        num_obstacles = 0
         # add agents
         world.agents = [Agent() for i in range(num_agents)]
         for i, agent in enumerate(world.agents):
             agent.name = 'agent %d' % i
             agent.collide = True
             agent.silent = True
-            agent.size = 0.15
+            agent.size = 0.08
         # add landmarks
         world.landmarks = [Landmark() for i in range(num_landmarks)]
         for i, landmark in enumerate(world.landmarks):
             landmark.name = 'landmark %d' % i
             landmark.collide = False
             landmark.movable = False
+        # add obstacles
+        world.obstacles = [Landmark() for i in range(num_obstacles)]
+        for i, obstacle in enumerate(world.obstacles):
+            obstacle.name = 'obstacle %d' % i
+            obstacle.collide = True
+            obstacle.movable = False
+            obstacle.size = 0.30
+            obstacle.boundary = False
         # make initial conditions
         self.reset_world(world)
         return world
 
+    def create_wall(self, world):
+        # create a wall of obstacles
+        pass
+
     def reset_world(self, world):
-        # random properties for agents
+        # properties for agents
         for i, agent in enumerate(world.agents):
             agent.color = np.array([0.35, 0.35, 0.85])
-        # random properties for landmarks
+        # properties for landmarks
         for i, landmark in enumerate(world.landmarks):
-            landmark.color = np.array([0.25, 0.25, 0.25])
-        # set random initial states
-        for agent in world.agents:
-            agent.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
+            landmark.color = np.array([0.35, 0.85, 0.35])
+        # properties for obstacles
+        for i, obstacle in enumerate(world.obstacles):
+            obstacle.color = np.array([0.25, 0.25, 0.25])
+        # set initial states
+        for i, agent in enumerate(world.agents):
+            start_pos = [[-0.50, 0.00], [0.50, 0.00]]
+            agent.state.p_pos = np.array(start_pos[i])
             agent.state.p_vel = np.zeros(world.dim_p)
             agent.state.c = np.zeros(world.dim_c)
         for i, landmark in enumerate(world.landmarks):
-            landmark.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
+            start_pos = [[0.00, 0.90], [0.00, -0.90]]
+            landmark.state.p_pos = np.array(start_pos[i])
             landmark.state.p_vel = np.zeros(world.dim_p)
+        for i, obstacle in enumerate(world.obstacles):
+            pass
+        self.create_wall(world)
 
     def benchmark_data(self, agent, world):
         rew = 0
@@ -61,7 +82,6 @@ class Scenario(BaseScenario):
                     collisions += 1
         return (rew, collisions, min_dists, occupied_landmarks)
 
-
     def is_collision(self, agent1, agent2):
         delta_pos = agent1.state.p_pos - agent2.state.p_pos
         dist = np.sqrt(np.sum(np.square(delta_pos)))
@@ -73,22 +93,12 @@ class Scenario(BaseScenario):
         rew = 0
         for l in world.landmarks:
             dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in world.agents]
+            print(dists)
             rew -= min(dists)
         if agent.collide:
             for a in world.agents:
                 if self.is_collision(a, agent):
                     rew -= 1
-
-        # agents are penalized for exiting the screen, so that they can converge faster
-        def bound(x):
-            if x < 0.9:
-                return 0
-            if x < 1.0:
-                return (x - 0.9) * 10
-            return min(np.exp(2 * x - 2), 10)
-        for p in range(world.dim_p):
-            x = abs(agent.state.p_pos[p])
-            rew -= bound(x)
 
         return rew
 

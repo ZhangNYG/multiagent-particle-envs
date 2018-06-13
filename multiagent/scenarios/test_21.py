@@ -5,19 +5,23 @@ from multiagent.scenario import BaseScenario
 
 
 class Scenario(BaseScenario):
+
+    def __init__(self):
+        self.one_hot_array = []
+        self.colours = []
+
     def make_world(self):
         world = World()
         # set any world properties first
         world.dim_c = 2
-        num_agents = 2
-        num_landmarks = 2
+        num_agents = 5
+        num_landmarks = 5
         num_obstacles = 0
         # generate one-hot encoding for unique hidden goals
-        one_hot_array = list(itertools.product([0, 1], repeat=num_landmarks))
+        self.one_hot_array = list(itertools.product([0, 1], repeat=num_landmarks))
         # generate colours for goal identification
-        colours = []
         for _ in range(num_landmarks):
-            colours.append(np.random.uniform(-1, +1, 3))
+            self.colours.append(np.random.uniform(-1, +1, 3))
         # add agents
         world.agents = [Agent() for i in range(num_agents)]
         for i, agent in enumerate(world.agents):
@@ -25,15 +29,15 @@ class Scenario(BaseScenario):
             agent.collide = True
             agent.silent = True
             agent.size = 0.08
-            agent.color = colours[i]
+            agent.color = self.colours[i]
         # add landmarks
         world.landmarks = [Landmark() for i in range(num_landmarks)]
         for i, landmark in enumerate(world.landmarks):
             landmark.name = 'landmark %d' % i
             landmark.collide = False
             landmark.movable = False
-            landmark.color = colours[i]
-            landmark.id = one_hot_array[i + 1]
+            landmark.color = self.colours[i]
+            landmark.id = self.one_hot_array[2**i]
         # add obstacles
         world.obstacles = [Landmark() for i in range(num_obstacles)]
         for i, obstacle in enumerate(world.obstacles):
@@ -49,10 +53,7 @@ class Scenario(BaseScenario):
 
     def assign_goals(self, i, agent):
         # assign each agent to a unique set of goals in one-hot encoding
-        if i == 0:
-            agent.hidden_goals = (0, 1)
-        elif i == 1:
-            agent.hidden_goals = (1, 0)
+        agent.hidden_goals = self.one_hot_array[2**i]
 
     def create_wall(self, world):
         # create a wall of obstacles
@@ -78,7 +79,8 @@ class Scenario(BaseScenario):
             landmark.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
             landmark.state.p_vel = np.zeros(world.dim_p)
         for i, obstacle in enumerate(world.obstacles):
-            pass
+            obstacle.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
+            obstacle.state.p_vel = np.zeros(world.dim_p)
         self.create_wall(world)
 
     def benchmark_data(self, agent, world):
@@ -86,10 +88,12 @@ class Scenario(BaseScenario):
         collisions = 0
         occupied_landmarks = 0
         min_dists = 0
+        dists = []
         for l in world.landmarks:
-            dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in world.agents]
-            min_dists += min(dists)
-            rew -= min(dists)
+            if l.id == agent.hidden_goals:
+                dists.append(np.sqrt(np.sum(np.square(agent.state.p_pos - l.state.p_pos))))
+                min_dists += min(dists)
+                rew -= min(dists)
             if min(dists) < 0.1:
                 occupied_landmarks += 1
         if agent.collide:

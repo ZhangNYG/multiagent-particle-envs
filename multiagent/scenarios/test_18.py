@@ -11,7 +11,7 @@ class Scenario(BaseScenario):
         world.dim_c = 2
         num_agents = 2
         num_landmarks = 2
-        num_obstacles = 0
+        num_obstacles = 1
         # generate one-hot encoding for unique hidden goals
         one_hot_array = list(itertools.product([0, 1], repeat=num_landmarks))
         # generate colours for goal identification
@@ -78,7 +78,8 @@ class Scenario(BaseScenario):
             landmark.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
             landmark.state.p_vel = np.zeros(world.dim_p)
         for i, obstacle in enumerate(world.obstacles):
-            pass
+            obstacle.state.p_pos = np.array([0.00, 0.00])
+            obstacle.state.p_vel = np.zeros(world.dim_p)
         self.create_wall(world)
 
     def benchmark_data(self, agent, world):
@@ -86,10 +87,12 @@ class Scenario(BaseScenario):
         collisions = 0
         occupied_landmarks = 0
         min_dists = 0
+        dists = []
         for l in world.landmarks:
-            dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in world.agents]
-            min_dists += min(dists)
-            rew -= min(dists)
+            if l.id == agent.hidden_goals:
+                dists.append(np.sqrt(np.sum(np.square(agent.state.p_pos - l.state.p_pos))))
+                min_dists += min(dists)
+                rew -= min(dists)
             if min(dists) < 0.1:
                 occupied_landmarks += 1
         if agent.collide:

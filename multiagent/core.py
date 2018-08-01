@@ -91,6 +91,7 @@ class World(object):
         self.agents = []
         self.landmarks = []
         self.obstacles = []
+        self.walls = []
         # communication channel dimensionality
         self.dim_c = 0
         # position dimensionality
@@ -108,7 +109,7 @@ class World(object):
     # return all entities in the world
     @property
     def entities(self):
-        return self.agents + self.landmarks + self.obstacles
+        return self.agents + self.landmarks + self.obstacles + self.walls
 
     # return all agents controllable by external policies
     @property

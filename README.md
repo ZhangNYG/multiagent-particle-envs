@@ -1,3 +1,8 @@
+# My experiments
+
+All my tests are based on the `simple_spread.py` (Cooperative navigation) scenario outlined in Open AI's Multi-Agent Particle Environment. An up-to-date spreadsheet of test results can be found using the following link:
+https://docs.google.com/spreadsheets/d/1A_PyMzVX_amdu_8cTvVNfNAc_x4i3zsD3nhQw8AGP2M/edit?usp=sharing
+
 # Multi-Agent Particle Environment
 
 A simple multi-agent particle world with a continuous observation and discrete action space, along with some basic simulated physics.

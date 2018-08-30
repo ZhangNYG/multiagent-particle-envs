@@ -75,6 +75,13 @@ class Scenario(BaseScenario):
         elif axis == 1: # on y-axis
             return [0.00, random_val]
 
+    def check_for_spawn_clash(self, world_entity_list, entity):
+        other_entities = world_entity_list.copy()
+        other_entities.remove(entity)
+        for other in other_entities:
+            while self.is_collision(entity, other, 0.1) is True:
+                entity.state.p_pos = np.array(self.sample_position())
+
     def reset_world(self, world):
         # properties for agents
         for i, agent in enumerate(world.agents):
@@ -88,11 +95,15 @@ class Scenario(BaseScenario):
         # set initial states
         for i, agent in enumerate(world.agents):
             agent.state.p_pos = np.array(self.sample_position())
+            if i > 0:
+                self.check_for_spawn_clash(world.agents, agent)
             agent.state.p_vel = np.zeros(world.dim_p)
             agent.state.c = np.zeros(world.dim_c)
             self.assign_goals(i, agent)
         for i, landmark in enumerate(world.landmarks):
             landmark.state.p_pos = np.array(self.sample_position())
+            if i > 0:
+                self.check_for_spawn_clash(world.landmarks, landmark)
             landmark.state.p_vel = np.zeros(world.dim_p)
         for i, obstacle in enumerate(world.obstacles):
             if i > 3:
@@ -128,12 +139,15 @@ class Scenario(BaseScenario):
             for o in world.obstacles:
                 if self.is_collision(o, agent):
                     rew -= 0
-        return (rew, collisions, min_dists, occupied_landmarks)
+        return (rew, collisions, min_dists, self.occupied_landmarks)
 
-    def is_collision(self, agent1, agent2):
+    def is_collision(self, agent1, agent2, gap=None):
         delta_pos = agent1.state.p_pos - agent2.state.p_pos
         dist = np.sqrt(np.sum(np.square(delta_pos)))
-        dist_min = agent1.size + agent2.size
+        if gap is None:
+            dist_min = agent1.size + agent2.size
+        else:
+            dist_min = 2*gap
         return True if dist < dist_min else False
 
     def reward(self, agent, world):
@@ -193,3 +207,4 @@ class Scenario(BaseScenario):
             comm.append(other.state.c)
             other_pos.append(other.state.p_pos - agent.state.p_pos)
         return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + comm)
+

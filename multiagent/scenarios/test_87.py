@@ -130,11 +130,11 @@ class Scenario(BaseScenario):
                     self.occupied_landmarks[self.one_hot_2_int(l) - 1] = 0
         # Agent rewarded if all agents occupy their goals
         if sum(self.occupied_landmarks) == self.num_agents:
-            rew += 1
+            rew += 7
         if agent.collide:
             for a in world.agents:
                 if self.is_collision(a, agent):
-                    rew -= 7
+                    rew -= 30
                     collisions += 1
             for o in world.obstacles:
                 if self.is_collision(o, agent):
@@ -163,11 +163,11 @@ class Scenario(BaseScenario):
                     self.occupied_landmarks[self.one_hot_2_int(l) - 1] = 0
         # Agent rewarded if all agents occupy their goals
         if sum(self.occupied_landmarks) == self.num_agents:
-            rew += 1
+            rew += 7
         if agent.collide:
             for a in world.agents:
                 if self.is_collision(a, agent):
-                    rew -= 7
+                    rew -= 30
             for o in world.obstacles:
                 if self.is_collision(o, agent):
                     rew -= 0

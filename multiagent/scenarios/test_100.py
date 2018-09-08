@@ -13,6 +13,12 @@ class Scenario(BaseScenario):
         self.obstacle_count = 0
         self.occupied_landmarks = []
         self.num_agents = 2
+        self.reset_flag = []
+
+        # Inputs
+        self.individual_reward = 0
+        self.cooperative_reward = 7
+        self.crash_punishment = 7
 
     def make_world(self):
         world = World()
@@ -34,6 +40,7 @@ class Scenario(BaseScenario):
             agent.silent = True
             agent.size = 0.10
             agent.color = self.colours[i]
+            agent.state.p_pos = [0.00, 0.00]
         # add landmarks
         world.landmarks = [Landmark() for i in range(num_landmarks)]
         for i, landmark in enumerate(world.landmarks):
@@ -43,6 +50,7 @@ class Scenario(BaseScenario):
             landmark.color = self.colours[i]
             landmark.id = self.one_hot_array[2**i]
             self.occupied_landmarks.append(0)
+            landmark.state.p_pos = [0.00, 0.00]
         # add obstacles
         world.obstacles = [Landmark() for i in range(num_obstacles)]
         for i, obstacle in enumerate(world.obstacles):
@@ -54,25 +62,12 @@ class Scenario(BaseScenario):
             obstacle.color = np.array([0.25, 0.25, 0.25])
             # self.create_wall(world, obstacle, 10, -0.2, -1, -0.2, -0.2)
         # make initial conditions
-        for i, agent in enumerate(world.agents):
-            agent.state.p_pos = np.array(self.sample_position())
-            if i > 0:
-                self.check_for_spawn_clash(world.agents, agent)
-            agent.state.p_vel = np.zeros(world.dim_p)
-            agent.state.c = np.zeros(world.dim_c)
-            self.assign_goals(i, agent)
         self.reset_world(world)
         return world
 
     def assign_goals(self, i, agent):
         # assign each agent to a unique set of goals in one-hot encoding
         agent.hidden_goals = self.one_hot_array[2**i]
-        
-    def one_hot_2_int(self, landmark):
-        strings = ''
-        for x in landmark.id:
-            strings += str(x)
-        return int(strings, 2)
         
     def sample_position(self):
         random_val = uniform(-0.80, 0.80)
@@ -90,6 +85,7 @@ class Scenario(BaseScenario):
                 entity.state.p_pos = np.array(self.sample_position())
 
     def reset_world(self, world):
+        self.reset_flag = [True] * self.num_agents
         # properties for agents
         for i, agent in enumerate(world.agents):
             pass
@@ -100,13 +96,13 @@ class Scenario(BaseScenario):
         for i, obstacle in enumerate(world.obstacles):
             pass
         # set initial states
-        # for i, agent in enumerate(world.agents):
-            # agent.state.p_pos = np.array(self.sample_position())
-            # if i > 0:
-            #    self.check_for_spawn_clash(world.agents, agent)
-            # agent.state.p_vel = np.zeros(world.dim_p)
-            # agent.state.c = np.zeros(world.dim_c)
-            # self.assign_goals(i, agent)
+        for i, agent in enumerate(world.agents):
+            agent.state.p_pos = np.array(self.sample_position())
+            if i > 0:
+                self.check_for_spawn_clash(world.agents, agent)
+            agent.state.p_vel = np.zeros(world.dim_p)
+            agent.state.c = np.zeros(world.dim_c)
+            self.assign_goals(i, agent)
         for i, landmark in enumerate(world.landmarks):
             landmark.state.p_pos = np.array(self.sample_position())
             if i > 0:
@@ -125,28 +121,33 @@ class Scenario(BaseScenario):
 
     def benchmark_data(self, agent, world):
         rew = 0
+        goal_flag = 0
         collisions = 0
-        min_dists = 0
-        for l in world.landmarks:
+
+        for i, l in enumerate(world.landmarks):
             if l.id == agent.hidden_goals:
                 rew -= np.sqrt(np.sum(np.square(agent.state.p_pos - l.state.p_pos)))
+                if self.reset_flag[i]:
+                    self.reset_flag[i] = False
+                    self.occupied_landmarks[i] = False
                 if self.is_collision(l, agent):
-                    rew += 0
-                    self.occupied_landmarks[self.one_hot_2_int(l) - 1] = 1
-                else:
-                    self.occupied_landmarks[self.one_hot_2_int(l) - 1] = 0
+                    rew += self.individual_reward
+                    self.occupied_landmarks[i] = True
+                if self.occupied_landmarks[i] is True:
+                    goal_flag = 1
+
         # Agent rewarded if all agents occupy their goals
         if sum(self.occupied_landmarks) == self.num_agents:
-            rew += 7
+            rew += self.cooperative_reward
         if agent.collide:
             for a in world.agents:
                 if self.is_collision(a, agent):
-                    rew -= 7
-                    collisions += 1
+                    rew -= self.crash_punishment
+                    collisions = 1
             for o in world.obstacles:
                 if self.is_collision(o, agent):
                     rew -= 0
-        return (rew, collisions, min_dists, self.occupied_landmarks)
+        return rew, collisions, goal_flag
 
     def is_collision(self, agent1, agent2, gap=None):
         if agent1 == agent2:
@@ -162,21 +163,19 @@ class Scenario(BaseScenario):
     def reward(self, agent, world):
         # Agents are rewarded based on minimum agent distance to each relevant landmark, penalized for collisions
         rew = 0
-        for l in world.landmarks:
+        for i, l in enumerate(world.landmarks):
             if l.id == agent.hidden_goals:
                 rew -= np.sqrt(np.sum(np.square(agent.state.p_pos - l.state.p_pos)))
                 if self.is_collision(l, agent):
-                    rew += 0
-                    self.occupied_landmarks[self.one_hot_2_int(l) - 1] = 1
-                else:
-                    self.occupied_landmarks[self.one_hot_2_int(l) - 1] = 0
+                    rew += self.individual_reward
+                    self.occupied_landmarks[i] = True
         # Agent rewarded if all agents occupy their goals
-        if sum(self.occupied_landmarks) == self.num_agents:
-            rew += 7
+        if all(self.occupied_landmarks):
+            rew += self.cooperative_reward
         if agent.collide:
             for a in world.agents:
                 if self.is_collision(a, agent):
-                    rew -= 7
+                    rew -= self.crash_punishment
             for o in world.obstacles:
                 if self.is_collision(o, agent):
                     rew -= 0
@@ -215,5 +214,12 @@ class Scenario(BaseScenario):
             if other is agent: continue
             comm.append(other.state.c)
             other_pos.append(other.state.p_pos - agent.state.p_pos)
-        return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + comm)
+        # get positions of all other agents relative to their goals
+        other_goals = []
+        for other in world.agents:
+            if other is agent: continue
+            for l in world.landmarks:
+                if l.id == other.hidden_goals:
+                    other_goals.append(l.state.p_pos - other.state.p_pos)
+        return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + comm + other_goals)
 

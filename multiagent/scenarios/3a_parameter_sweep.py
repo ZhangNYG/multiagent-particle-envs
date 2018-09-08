@@ -147,7 +147,7 @@ class Scenario(BaseScenario):
             for o in world.obstacles:
                 if self.is_collision(o, agent):
                     rew -= 0
-        return rew, collisions, goal_flag
+        return collisions, goal_flag
 
     def is_collision(self, agent1, agent2, gap=None):
         if agent1 == agent2:

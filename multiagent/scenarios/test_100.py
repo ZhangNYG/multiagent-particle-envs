@@ -169,6 +169,8 @@ class Scenario(BaseScenario):
                 if self.is_collision(l, agent):
                     rew += self.individual_reward
                     self.occupied_landmarks[i] = True
+                else:
+                    self.occupied_landmarks[i] = False
         # Agent rewarded if all agents occupy their goals
         if all(self.occupied_landmarks):
             rew += self.cooperative_reward
@@ -191,7 +193,7 @@ class Scenario(BaseScenario):
         for p in range(world.dim_p):
             x = abs(agent.state.p_pos[p])
             rew -= bound(x)
- 
+
         return rew
 
     def observation(self, agent, world):

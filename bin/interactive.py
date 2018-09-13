@@ -123,17 +123,17 @@ def play(arglist):
         # create world
         world = scenario.make_world()
         # create multiagent environment
-        env = MultiAgentEnv(world, scenario.reset_world, scenario.reward, scenario.observation, info_callback=None, shared_viewer=False)
+        env = MultiAgentEnv(world, scenario.reset_world, scenario.reward, scenario.observation, info_callback=None, shared_viewer=True)
         # render call to create viewer window (necessary only for interactive policies)
         env.render()
         # create interactive policies for one agent
-        policy = InteractivePolicy(env, 1)
+        policy = InteractivePolicy(env, -1)
         # execution loop
         obs_n = env.reset()
         while True:
             # query for action from each agent's policy
             act_n = [agent.action(obs) for agent, obs in zip(trainers, obs_n)]  # trained policy
-            act_n[1] = policy.action(obs_n[1])  # interactive keyboard policy
+            act_n[-1] = policy.action(obs_n[-1])  # interactive keyboard policy
             # step environment
             new_obs_n, reward_n, done_n, _ = env.step(act_n)
             episode_step += 1
@@ -173,7 +173,7 @@ def play(arglist):
                 continue
 
             # render all agent views
-            time.sleep(0.03)
+            time.sleep(0.05)
             env.render()
             # display rewards
             for agent in env.world.agents:
@@ -184,3 +184,4 @@ if __name__ == '__main__':
     # parse arguments
     args = parse_args()
     play(args)
+

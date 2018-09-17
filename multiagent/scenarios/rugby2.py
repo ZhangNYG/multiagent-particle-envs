@@ -10,10 +10,10 @@ class Scenario(BaseScenario):
         world = World()
         # set any world properties first
         world.dim_c = 2
-        num_agents = 6
+        num_agents = 7
         world.num_agents = num_agents
         num_adversaries = num_agents - 1
-        num_landmarks = 1
+        num_balls = 1
         # add agents
         world.agents = [Agent() for i in range(num_agents)]
         for i, agent in enumerate(world.agents):
@@ -23,17 +23,13 @@ class Scenario(BaseScenario):
             agent.adversary = True if i < num_adversaries else False
             agent.size = 0.08 if i < num_adversaries else 0.08
         # add landmarks
-        world.landmarks = [Landmark() for i in range(num_landmarks)]
-        for i, landmark in enumerate(world.landmarks):
-            landmark.name = 'landmark %d' % i
-            landmark.collide = False
-            landmark.movable = False
-            landmark.size = 0.03
+        world.balls = [Landmark() for i in range(num_balls)]
+        for i, ball in enumerate(world.balls):
+            ball.name = 'ball %d' % i
+            ball.collide = False
+            ball.movable = False
+            ball.size = 0.03
         # make initial conditions
-        for agent in world.agents:
-            agent.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
-            agent.state.p_vel = np.zeros(world.dim_p)
-            agent.state.c = np.zeros(world.dim_c)
         self.reset_world(world)
         return world
 
@@ -44,11 +40,13 @@ class Scenario(BaseScenario):
             world.agents[i].color = np.array([0.85, 0.35, 0.35])
         # set random initial states
         for agent in world.agents:
-            pass
-        for i, landmark in enumerate(world.landmarks):
-            landmark.state.p_pos = np.random.uniform(-0.5, +0.5, world.dim_p)
-            landmark.state.p_vel = np.zeros(world.dim_p)
-            landmark.color = np.array([0.35, 0.35, 0.35])
+            agent.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
+            agent.state.p_vel = np.zeros(world.dim_p)
+            agent.state.c = np.zeros(world.dim_c)
+        for i, ball in enumerate(world.balls):
+            ball.state.p_pos = np.random.uniform(-0.5, +0.5, world.dim_p)
+            ball.state.p_vel = np.zeros(world.dim_p)
+            ball.color = np.array([0.35, 0.35, 0.35])
 
     def benchmark_data(self, agent, world):
         # returns data for benchmarking purposes
@@ -56,7 +54,7 @@ class Scenario(BaseScenario):
             return np.sum(np.square(agent.state.p_pos - agent.goal_a.state.p_pos))
         else:
             dists = []
-            for l in world.landmarks:
+            for l in world.balls:
                 dists.append(np.sum(np.square(agent.state.p_pos - l.state.p_pos)))
             dists.append(np.sum(np.square(agent.state.p_pos - agent.goal_a.state.p_pos)))
             return tuple(dists)
@@ -74,26 +72,27 @@ class Scenario(BaseScenario):
         return self.adversary_reward(agent, world) if agent.adversary else self.agent_reward(agent, world)
 
     def agent_reward(self, agent, world):
-        # Rewarded based on how close the attacker agent is to the landmark
-        l = world.landmarks[0]
-        rew = -np.sqrt(np.sum(np.square(agent.state.p_pos - l.state.p_pos)))
-        if np.sqrt(np.sum(np.square(agent.state.p_pos - l.state.p_pos))) < 3*l.size:
-            self.reset_world(world)
+        # Rewarded based on how close the defensive agent is to the ball
+        b = world.balls[0]
+        rew = -np.sqrt(np.sum(np.square(agent.state.p_pos - b.state.p_pos)))
         return rew
 
     def adversary_reward(self, agent, world):
-        # Punished based on how close attacker agent is to the defender
-        rew = -np.sqrt(np.sum(np.square(agent.state.p_pos - world.agents[-1].state.p_pos)))
+        # Punished based on how close the defensive agent is to the ball
+        a = world.agents[-1]
+        b = world.balls[0]
+        rew = -np.sqrt(np.sum(np.square(agent.state.p_pos - b.state.p_pos)))
+        rew += 5 * np.sqrt(np.sum(np.square(a.state.p_pos - b.state.p_pos)))
         return rew
 
     def observation(self, agent, world):
         # get positions of all entities in this agent's reference frame
         entity_pos = []
-        for entity in world.landmarks:
+        for entity in world.balls:
             entity_pos.append(entity.state.p_pos - agent.state.p_pos)
         # entity colors
         entity_color = []
-        for entity in world.landmarks:
+        for entity in world.balls:
             entity_color.append(entity.color)
         # communication of all other agents
         other_pos = []

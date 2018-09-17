@@ -57,6 +57,8 @@ class Entity(object):
 class Landmark(Entity):
      def __init__(self):
         super(Landmark, self).__init__()
+        # mass
+        self.initial_mass = 1.0
 
 
 # properties of agent entities
@@ -91,7 +93,7 @@ class World(object):
         self.agents = []
         self.landmarks = []
         self.obstacles = []
-        self.walls = []
+        self.balls = []
         # communication channel dimensionality
         self.dim_c = 0
         # position dimensionality
@@ -103,13 +105,13 @@ class World(object):
         # physical damping
         self.damping = 0.25
         # contact response parameters
-        self.contact_force = 1e+2
+        self.contact_force = 50
         self.contact_margin = 1e-3
 
     # return all entities in the world
     @property
     def entities(self):
-        return self.agents + self.landmarks + self.obstacles + self.walls
+        return self.agents + self.landmarks + self.obstacles + self.balls
 
     # return all agents controllable by external policies
     @property

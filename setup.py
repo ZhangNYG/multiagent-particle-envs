@@ -1,9 +1,9 @@
 from setuptools import setup, find_packages
 
-setup(name='multiagent2',
+setup(name='multiagent',
       version='0.0.1',
       description='Multi-Agent Goal-Driven Communication Environment',
-      url='https://github.com/openai/multiagent2-public',
+      url='https://github.com/openai/multiagent-public',
       author='Igor Mordatch',
       author_email='mordatch@openai.com',
       packages=find_packages(),

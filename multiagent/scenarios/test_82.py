@@ -54,13 +54,6 @@ class Scenario(BaseScenario):
             obstacle.color = np.array([0.25, 0.25, 0.25])
             # self.create_wall(world, obstacle, 10, -0.2, -1, -0.2, -0.2)
         # make initial conditions
-        for i, agent in enumerate(world.agents):
-            agent.state.p_pos = np.array(self.sample_position())
-            if i > 0:
-                self.check_for_spawn_clash(world.agents, agent)
-            agent.state.p_vel = np.zeros(world.dim_p)
-            agent.state.c = np.zeros(world.dim_c)
-            self.assign_goals(i, agent)
         self.reset_world(world)
         return world
 
@@ -100,13 +93,13 @@ class Scenario(BaseScenario):
         for i, obstacle in enumerate(world.obstacles):
             pass
         # set initial states
-        # for i, agent in enumerate(world.agents):
-            # agent.state.p_pos = np.array(self.sample_position())
-            # if i > 0:
-            #    self.check_for_spawn_clash(world.agents, agent)
-            # agent.state.p_vel = np.zeros(world.dim_p)
-            # agent.state.c = np.zeros(world.dim_c)
-            # self.assign_goals(i, agent)
+        for i, agent in enumerate(world.agents):
+            agent.state.p_pos = np.array(self.sample_position())
+            if i > 0:
+                self.check_for_spawn_clash(world.agents, agent)
+            agent.state.p_vel = np.zeros(world.dim_p)
+            agent.state.c = np.zeros(world.dim_c)
+            self.assign_goals(i, agent)
         for i, landmark in enumerate(world.landmarks):
             landmark.state.p_pos = np.array(self.sample_position())
             if i > 0:

@@ -17,6 +17,7 @@ class Scenario(BaseScenario):
         self.t = Timer(40, self.timeout)  # duration is in seconds
         self.t.start()
         self.game_over = False
+        self.obstacle_vel = []
 
     def timeout(self):
         cprint(figlet_format('Game Over!\nFinal score: ' + str(self.score)), 'red')
@@ -30,6 +31,7 @@ class Scenario(BaseScenario):
         world.num_agents = num_agents
         num_adversaries = num_agents - 1
         num_landmarks = 1
+        num_obstacles = 1
         # add agents
         world.agents = [Agent() for i in range(num_agents)]
         for i, agent in enumerate(world.agents):
@@ -46,19 +48,31 @@ class Scenario(BaseScenario):
             landmark.collide = False
             landmark.movable = False
             landmark.size = 0.03
+        # add obstacle
+        world.obstacles = [Landmark() for i in range(num_obstacles)]
+        for i, obstacle in enumerate(world.obstacles):
+            obstacle.name = 'obstacle %d' % i
+            obstacle.collide = True
+            obstacle.movable = True
+            obstacle.size = 0.30
         # make initial conditions
         for agent in world.agents:
             agent.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
             agent.state.p_vel = np.zeros(world.dim_p)
             agent.state.c = np.zeros(world.dim_c)
+        for obstacle in world.obstacles:
+            obstacle.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
+            self.obstacle_vel = np.random.uniform(-1, +1, world.dim_p)
+            obstacle.state.p_vel = self.obstacle_vel
+            obstacle.state.c = np.zeros(world.dim_c)
         self.reset_world(world)
         return world
 
     def reset_world(self, world):
         # set properties for agents
-        world.agents[-1].color = np.array([0.35, 0.35, 0.85])
+        world.agents[-1].color = np.array([0.35, 0.65, 0.85])
         for i in range(0, world.num_agents - 1):
-            world.agents[i].color = np.array([0.85, 0.35, 0.35])
+            world.agents[i].color = np.array([0.85, 0.85, 0.85])
         # set random initial states
         for agent in world.agents:
             pass
@@ -66,6 +80,8 @@ class Scenario(BaseScenario):
             landmark.state.p_pos = np.random.uniform(-0.8, +0.8, world.dim_p)
             landmark.state.p_vel = np.zeros(world.dim_p)
             landmark.color = np.array([0.35, 0.35, 0.35])
+        for obstacle in world.obstacles:
+            obstacle.color = np.array([0.70, 0.50, 0.95])
 
     def benchmark_data(self, agent, world):
         # returns data for benchmarking purposes
@@ -83,16 +99,18 @@ class Scenario(BaseScenario):
         x_pos = agent.state.p_pos[0]
         y_pos = agent.state.p_pos[1]
 
-        if abs(x_pos) > 1.0 or abs(y_pos) > 1.0:
-            pass  # agent.state.p_vel = np.zeros(world.dim_p)
-        if x_pos < -1.0:
-            x_pos = -1.0
-        if y_pos < -1.0:
-            y_pos = -1.0
-        if x_pos > +1.0:
-            x_pos = +1.0
-        if y_pos > +1.0:
-            y_pos = +1.0
+        if agent.name == 'obstacle 0':
+            if x_pos < -1.0: x_pos = +1.0
+            if y_pos < -1.0: y_pos = +1.0
+            if x_pos > +1.0: x_pos = -1.0
+            if y_pos > +1.0: y_pos = -1.0
+        else:
+            if abs(x_pos) > 1.0 or abs(y_pos) > 1.0:
+                pass  # agent.state.p_vel = np.zeros(world.dim_p)
+            if x_pos < -1.0: x_pos = -1.0
+            if y_pos < -1.0: y_pos = -1.0
+            if x_pos > +1.0: x_pos = +1.0
+            if y_pos > +1.0: y_pos = +1.0
 
         agent.state.p_pos[0] = x_pos
         agent.state.p_pos[1] = y_pos
@@ -126,6 +144,9 @@ class Scenario(BaseScenario):
         return rew
 
     def observation(self, agent, world):
+        for obstacle in world.obstacles:
+            obstacle.state.p_vel = self.obstacle_vel
+            self.restrict_movement(obstacle, world)
         # get positions of all entities in this agent's reference frame
         entity_pos = []
         for entity in world.landmarks:

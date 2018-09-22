@@ -54,6 +54,7 @@ class Viewer(object):
         self.geoms = []
         self.onetime_geoms = []
         self.transform = Transform()
+        self.window_pos = None
 
         glEnable(GL_BLEND)
         # glEnable(GL_MULTISAMPLE)
@@ -62,6 +63,13 @@ class Viewer(object):
         glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)
         glLineWidth(2.0)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+
+    def adjust_pos(self):
+        if self.window_pos == 'left': del_x = -370
+        elif self.window_pos == 'right': del_x = 370
+        else: del_x = 0
+        x, y = self.window.get_location()
+        self.window.set_location(x + del_x, y - 30)
 
     def close(self):
         self.window.close()
@@ -89,6 +97,7 @@ class Viewer(object):
         self.window.switch_to()
         self.window.dispatch_events()
         self.transform.enable()
+
         for geom in self.geoms:
             geom.render()
         for geom in self.onetime_geoms:
@@ -343,3 +352,5 @@ class SimpleImageViewer(object):
             self.isopen = False
     def __del__(self):
         self.close()
+
+

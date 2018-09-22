@@ -34,6 +34,9 @@ class MultiAgentEnv(gym.Env):
         self.shared_reward = False
         self.time = 0
 
+        # window position
+        self.window_pos = None
+
         # configure spaces
         self.action_space = []
         self.observation_space = []
@@ -209,7 +212,7 @@ class MultiAgentEnv(gym.Env):
                     else:
                         word = alphabet[np.argmax(other.state.c)]
                     message += (other.name + ' to ' + agent.name + ': ' + word + '   ')
-            print(message)
+            # print(message)
 
         for i in range(len(self.viewers)):
             # create viewers (if necessary)
@@ -218,6 +221,8 @@ class MultiAgentEnv(gym.Env):
                 #from gym.envs.classic_control import rendering
                 from multiagent import rendering
                 self.viewers[i] = rendering.Viewer(700,700)
+                self.viewers[i].window_pos = self.window_pos
+                self.viewers[i].adjust_pos()
 
         # create rendering geometry
         if self.render_geoms is None:

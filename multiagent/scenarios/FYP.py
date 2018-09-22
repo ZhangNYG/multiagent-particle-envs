@@ -9,6 +9,7 @@ class Scenario(BaseScenario):
     def make_world(self):
         world = World()
         # set any world properties first
+        world.contact_force = 100
         world.dim_c = 2
         num_agents = 42
         world.num_agents = num_agents
@@ -71,7 +72,10 @@ class Scenario(BaseScenario):
             agent.collide = True
             agent.silent = True
             agent.adversary = True if i < num_adversaries else False
-            agent.size = 0.04 if i < num_adversaries else 0.10
+            agent.size = 0.02 if i < num_adversaries else 0.15
+            agent.density = 80.0 if i < num_adversaries else 15.0
+            agent.max_speed = None if i < num_adversaries else None
+            agent.accel = 1 if i < num_adversaries else None
             agent.goal = np.array(world.goals[i])
         # make initial conditions
         self.reset_world(world)
@@ -79,14 +83,19 @@ class Scenario(BaseScenario):
 
     def reset_world(self, world):
         # set properties for agents
-        world.agents[-1].color = np.array([0.35, 0.35, 0.85])
-        for i in range(0, world.num_agents - 1):
-            world.agents[i].color = np.array([0.35, 0.35, 0.35])
+        for i in range(0, 14):
+            world.agents[i].color = np.array([0.35, 0.85, 0.35])
+        for i in range(14, 26):
+            world.agents[i].color = np.array([0.85, 0.35, 0.35])
+        for i in range(26, 41):
+            world.agents[i].color = np.array([0.35, 0.35, 0.85])
+        world.agents[-1].color = np.array([0.35, 0.35, 0.35])
         # set random initial states
         for agent in world.agents:
-            agent.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
+            agent.state.p_pos = np.random.uniform(-0.7, +0.7, world.dim_p)
             agent.state.p_vel = np.zeros(world.dim_p)
             agent.state.c = np.zeros(world.dim_c)
+        world.agents[-1].state.p_pos = np.array([+1.0, +1.0])
 
     def benchmark_data(self, agent, world):
         # returns data for benchmarking purposes
@@ -98,6 +107,12 @@ class Scenario(BaseScenario):
                 dists.append(np.sum(np.square(agent.state.p_pos - l.state.p_pos)))
             dists.append(np.sum(np.square(agent.state.p_pos - agent.goal_a.state.p_pos)))
             return tuple(dists)
+
+    # restrict movement of agents to a location
+    def restrict_movement(self, agent, world, location):
+        if np.sqrt(np.sum(np.square(agent.state.p_pos - location))) < 10*agent.size:
+            agent.state.p_pos = location
+            agent.state.p_vel = np.zeros(world.dim_p)
 
     # return all agents that are not adversaries
     def good_agents(self, world):
@@ -116,7 +131,7 @@ class Scenario(BaseScenario):
         return 0
 
     def adversary_reward(self, agent, world):
-        # Punished based on how close attacker agent is to the defender
+        # Reward agents for being near their goals
         rew = -np.sqrt(np.sum(np.square(agent.state.p_pos - agent.goal)))
         if np.sqrt(np.sum(np.square(agent.state.p_pos - agent.goal))) < agent.size:
             rew += 10
@@ -132,6 +147,9 @@ class Scenario(BaseScenario):
         for other in world.agents:
             if other is agent: continue
             other_pos.append(other.state.p_pos - agent.state.p_pos)
+
+        if agent == world.agents[-1]: pass
+        else: self.restrict_movement(agent, world, agent.goal)
 
         return np.concatenate(entity_pos + other_pos)
 

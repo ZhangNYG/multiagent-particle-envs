@@ -19,6 +19,7 @@ from multiagent.environment import MultiAgentEnv
 from multiagent.policy import InteractivePolicy
 import multiagent.scenarios as scenarios
 
+
 def parse_args():
     parser = argparse.ArgumentParser("Reinforcement Learning experiments for multiagent environments")
     # Environment
@@ -45,6 +46,7 @@ def parse_args():
     parser.add_argument("--benchmark-iters", type=int, default=100000, help="number of iterations run for benchmarking")
     parser.add_argument("--benchmark-dir", type=str, default="./benchmark_files/", help="directory where benchmark data is saved")
     parser.add_argument("--plots-dir", type=str, default="./learning_curves/", help="directory where plot data is saved")
+    parser.add_argument("--delay", type=float, default=0.05, help="time delay in between steps")
     return parser.parse_args()
 
 def mlp_model(input, num_outputs, scope, reuse=False, num_units=64, rnn_cell=None):
@@ -59,6 +61,7 @@ def mlp_model(input, num_outputs, scope, reuse=False, num_units=64, rnn_cell=Non
 def make_env(scenario_name, arglist, benchmark=False):
     from multiagent.environment import MultiAgentEnv
     import multiagent.scenarios as scenarios
+    global scenario
 
     # load scenario from script
     scenario = scenarios.load(scenario_name + ".py").Scenario()
@@ -69,6 +72,7 @@ def make_env(scenario_name, arglist, benchmark=False):
         env = MultiAgentEnv(world, scenario.reset_world, scenario.reward, scenario.observation, scenario.benchmark_data)
     else:
         env = MultiAgentEnv(world, scenario.reset_world, scenario.reward, scenario.observation)
+    env.window_pos = 'right'
     return env
 
 def get_trainers(env, num_adversaries, obs_shape_n, arglist):
@@ -118,12 +122,11 @@ def play(arglist):
 
         print('Starting iterations...')
 
-        # load scenario from script
-        scenario = scenarios.load(args.scenario + ".py").Scenario()
         # create world
         world = scenario.make_world()
         # create multiagent environment
         env = MultiAgentEnv(world, scenario.reset_world, scenario.reward, scenario.observation, info_callback=None, shared_viewer=True)
+        env.window_pos = 'right'
         # render call to create viewer window (necessary only for interactive policies)
         env.render()
         # create interactive policies for one agent
@@ -160,6 +163,10 @@ def play(arglist):
             # increment global step counter
             train_step += 1
 
+            # for game over
+            if scenario.game_over:
+                sys.exit(0)
+
             # for benchmarking learned policies
             if arglist.benchmark:
                 for i, info in enumerate(_):
@@ -173,15 +180,22 @@ def play(arglist):
                 continue
 
             # render all agent views
-            time.sleep(0.05)
+            time.sleep(arglist.delay)
             env.render()
             # display rewards
             for agent in env.world.agents:
-                print(agent.name + " reward: %0.3f" % env._get_reward(agent))
+                pass  # print(agent.name + " reward: %0.3f" % env._get_reward(agent))
 
 
 if __name__ == '__main__':
+    time.sleep(2)
     # parse arguments
     args = parse_args()
     play(args)
+
+
+
+
+
+
 

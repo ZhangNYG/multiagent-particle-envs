@@ -2,9 +2,25 @@ import numpy as np
 from multiagent.core import World, Agent, Landmark
 from multiagent.scenario import BaseScenario
 import random
+import sys
+from colorama import init
+init(strip=not sys.stdout.isatty())  # strip colors if stdout is redirected
+from termcolor import cprint
+from pyfiglet import figlet_format
+from threading import Timer
 
 
 class Scenario(BaseScenario):
+
+    def __init__(self):
+        self.score = 0
+        self.t = Timer(40, self.timeout)  # duration is in seconds
+        self.t.start()
+        self.game_over = False
+
+    def timeout(self):
+        cprint(figlet_format('Game Over!\nFinal score: ' + str(self.score)), 'red')
+        self.game_over = True
 
     def make_world(self):
         world = World()
@@ -21,7 +37,8 @@ class Scenario(BaseScenario):
             agent.collide = True
             agent.silent = True
             agent.adversary = True if i < num_adversaries else False
-            agent.size = 0.08 if i < num_adversaries else 0.08
+            agent.size = 0.08 if i < num_adversaries else 0.10
+            agent.max_speed = 0.9 if i < num_adversaries else None
         # add landmarks
         world.landmarks = [Landmark() for i in range(num_landmarks)]
         for i, landmark in enumerate(world.landmarks):
@@ -46,7 +63,7 @@ class Scenario(BaseScenario):
         for agent in world.agents:
             pass
         for i, landmark in enumerate(world.landmarks):
-            landmark.state.p_pos = np.random.uniform(-0.5, +0.5, world.dim_p)
+            landmark.state.p_pos = np.random.uniform(-0.8, +0.8, world.dim_p)
             landmark.state.p_vel = np.zeros(world.dim_p)
             landmark.color = np.array([0.35, 0.35, 0.35])
 
@@ -60,6 +77,25 @@ class Scenario(BaseScenario):
                 dists.append(np.sum(np.square(agent.state.p_pos - l.state.p_pos)))
             dists.append(np.sum(np.square(agent.state.p_pos - agent.goal_a.state.p_pos)))
             return tuple(dists)
+
+    # restrict movement of agent to inside screen
+    def restrict_movement(self, agent, world):
+        x_pos = agent.state.p_pos[0]
+        y_pos = agent.state.p_pos[1]
+
+        if abs(x_pos) > 1.0 or abs(y_pos) > 1.0:
+            pass  # agent.state.p_vel = np.zeros(world.dim_p)
+        if x_pos < -1.0:
+            x_pos = -1.0
+        if y_pos < -1.0:
+            y_pos = -1.0
+        if x_pos > +1.0:
+            x_pos = +1.0
+        if y_pos > +1.0:
+            y_pos = +1.0
+
+        agent.state.p_pos[0] = x_pos
+        agent.state.p_pos[1] = y_pos
 
     # return all agents that are not adversaries
     def good_agents(self, world):
@@ -77,8 +113,11 @@ class Scenario(BaseScenario):
         # Rewarded based on how close the attacker agent is to the landmark
         l = world.landmarks[0]
         rew = -np.sqrt(np.sum(np.square(agent.state.p_pos - l.state.p_pos)))
-        if np.sqrt(np.sum(np.square(agent.state.p_pos - l.state.p_pos))) < 3*l.size:
+        if np.sqrt(np.sum(np.square(agent.state.p_pos - l.state.p_pos))) < agent.size:
+            self.score += 1
+            cprint(figlet_format('Score: ' + str(self.score)), 'blue')
             self.reset_world(world)
+        self.restrict_movement(agent, world)
         return rew
 
     def adversary_reward(self, agent, world):

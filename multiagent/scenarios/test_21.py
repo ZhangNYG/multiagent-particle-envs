@@ -7,8 +7,10 @@ from multiagent.scenario import BaseScenario
 class Scenario(BaseScenario):
 
     def __init__(self):
+        self.agent_size = 0.20
         self.one_hot_array = []
         self.colours = []
+        self.game_over = None
 
     def make_world(self):
         world = World()
@@ -28,7 +30,7 @@ class Scenario(BaseScenario):
             agent.name = 'agent %d' % i
             agent.collide = True
             agent.silent = True
-            agent.size = 0.08
+            agent.size = self.agent_size
             agent.color = self.colours[i]
         # add landmarks
         world.landmarks = [Landmark() for i in range(num_landmarks)]
@@ -55,9 +57,15 @@ class Scenario(BaseScenario):
         # assign each agent to a unique set of goals in one-hot encoding
         agent.hidden_goals = self.one_hot_array[2**i]
 
-    def create_wall(self, world):
-        # create a wall of obstacles
-        pass
+    def check_for_spawn_clash(self, world, entity):
+        for other in world.agents:
+            if other is entity: continue
+            while self.is_collision(entity, other) is True:
+                entity.state.p_pos = np.random.uniform(-0.7, +0.7, world.dim_p)
+        for other in world.landmarks:
+            if other is entity: continue
+            while self.is_collision(entity, other) is True:
+                entity.state.p_pos = np.random.uniform(-0.7, +0.7, world.dim_p)
 
     def reset_world(self, world):
         # properties for agents
@@ -76,51 +84,39 @@ class Scenario(BaseScenario):
             agent.state.c = np.zeros(world.dim_c)
             self.assign_goals(i, agent)
         for i, landmark in enumerate(world.landmarks):
-            landmark.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
+            landmark.state.p_pos = np.random.uniform(-0.7, +0.7, world.dim_p)
             landmark.state.p_vel = np.zeros(world.dim_p)
         for i, obstacle in enumerate(world.obstacles):
             obstacle.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
             obstacle.state.p_vel = np.zeros(world.dim_p)
-        self.create_wall(world)
+        for i, agent in enumerate(world.agents):
+            self.check_for_spawn_clash(world, agent)
+        for i, landmark in enumerate(world.landmarks):
+            self.check_for_spawn_clash(world, landmark)
 
     def benchmark_data(self, agent, world):
-        rew = 0
-        collisions = 0
-        occupied_landmarks = 0
-        min_dists = 0
-        dists = []
-        for l in world.landmarks:
-            if l.id == agent.hidden_goals:
-                dists.append(np.sqrt(np.sum(np.square(agent.state.p_pos - l.state.p_pos))))
-                min_dists += min(dists)
-                rew -= min(dists)
-            if min(dists) < 0.1:
-                occupied_landmarks += 1
-        if agent.collide:
-            for a in world.agents:
-                if self.is_collision(a, agent):
-                    rew -= 1
-                    collisions += 1
-        return (rew, collisions, min_dists, occupied_landmarks)
+        return 0
 
-    def is_collision(self, agent1, agent2):
-        delta_pos = agent1.state.p_pos - agent2.state.p_pos
+    def is_collision(self, entity1, entity2):
+        if entity1 == entity2:
+            return False
+        delta_pos = entity1.state.p_pos - entity2.state.p_pos
         dist = np.sqrt(np.sum(np.square(delta_pos)))
-        dist_min = agent1.size + agent2.size
+        dist_min = self.agent_size * 2
         return True if dist < dist_min else False
 
     def reward(self, agent, world):
         # Agents are rewarded based on minimum agent distance to each relevant landmark, penalized for collisions
         rew = 0
-        dists = []
         for l in world.landmarks:
             if l.id == agent.hidden_goals:
-                dists.append(np.sqrt(np.sum(np.square(agent.state.p_pos - l.state.p_pos))))
-                rew -= min(dists)
+                rew -= np.sqrt(np.sum(np.square(agent.state.p_pos - l.state.p_pos)))
+                if np.sqrt(np.sum(np.square(agent.state.p_pos - l.state.p_pos))) < agent.size:
+                    rew += 5
         if agent.collide:
             for a in world.agents:
                 if self.is_collision(a, agent):
-                    rew -= 1
+                    rew -= 20
         return rew
 
     def observation(self, agent, world):

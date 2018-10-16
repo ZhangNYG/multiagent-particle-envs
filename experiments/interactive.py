@@ -73,6 +73,7 @@ def make_env(scenario_name, arglist, benchmark=False):
     else:
         env = MultiAgentEnv(world, scenario.reset_world, scenario.reward, scenario.observation)
     env.window_pos = 'right'
+    env.force_discrete_action = False
     return env
 
 def get_trainers(env, num_adversaries, obs_shape_n, arglist):

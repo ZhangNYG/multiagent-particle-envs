@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 import argparse
 import gym
 import numpy as np
@@ -6,18 +5,11 @@ import os
 import tensorflow as tf
 import time
 import pickle
+import sys
 
 import maddpg.common.tf_util as U
 from maddpg.trainer.maddpg import MADDPGAgentTrainer
 import tensorflow.contrib.layers as layers
-
-import os,sys
-sys.path.append('/Users/Dylan/Documents/Git/multiagent-particle-envs/multiagent/scenarios')
-# sys.path.insert(1, os.path.join(sys.path[0], '..'))
-
-from multiagent.environment import MultiAgentEnv
-from multiagent.policy import InteractivePolicy
-import multiagent.scenarios as scenarios
 
 
 def parse_args():
@@ -29,6 +21,10 @@ def parse_args():
     parser.add_argument("--num-adversaries", type=int, default=0, help="number of adversaries")
     parser.add_argument("--good-policy", type=str, default="maddpg", help="policy for good agents")
     parser.add_argument("--adv-policy", type=str, default="maddpg", help="policy of adversaries")
+    parser.add_argument("--indv-rew", type=int, default=0, help="reward if one agent reaches its own goal")
+    parser.add_argument("--coop-rew", type=int, default=7, help="reward if all agents reach their respective goals")
+    parser.add_argument("--crash-pun", type=int, default=7, help="punishment when agents collide with one another")
+
     # Core training parameters
     parser.add_argument("--lr", type=float, default=1e-2, help="learning rate for Adam optimizer")
     parser.add_argument("--gamma", type=float, default=0.95, help="discount factor")
@@ -59,12 +55,16 @@ def mlp_model(input, num_outputs, scope, reuse=False, num_units=64, rnn_cell=Non
         return out
 
 def make_env(scenario_name, arglist, benchmark=False):
+    global scenario
     from multiagent.environment import MultiAgentEnv
     import multiagent.scenarios as scenarios
-    global scenario
 
     # load scenario from script
     scenario = scenarios.load(scenario_name + ".py").Scenario()
+    scenario.individual_reward = arglist.indv_rew
+    scenario.cooperative_reward = arglist.coop_rew
+    scenario.crash_punishment = arglist.crash_pun
+
     # create world
     world = scenario.make_world()
     # create multiagent environment
@@ -72,7 +72,8 @@ def make_env(scenario_name, arglist, benchmark=False):
         env = MultiAgentEnv(world, scenario.reset_world, scenario.reward, scenario.observation, scenario.benchmark_data)
     else:
         env = MultiAgentEnv(world, scenario.reset_world, scenario.reward, scenario.observation)
-    env.window_pos = 'right'
+    env.window_pos = 'left'
+    env.force_discrete_action = False
     return env
 
 def get_trainers(env, num_adversaries, obs_shape_n, arglist):
@@ -89,7 +90,8 @@ def get_trainers(env, num_adversaries, obs_shape_n, arglist):
             local_q_func=(arglist.good_policy=='ddpg')))
     return trainers
 
-def play(arglist):
+
+def train(arglist):
     with U.single_threaded_session():
         # Create environment
         env = make_env(arglist.scenario, arglist, arglist.benchmark)
@@ -121,34 +123,20 @@ def play(arglist):
         t_start = time.time()
 
         print('Starting iterations...')
-
-        # create world
-        world = scenario.make_world()
-        # create multiagent environment
-        env = MultiAgentEnv(world, scenario.reset_world, scenario.reward, scenario.observation, info_callback=None, shared_viewer=True)
-        env.window_pos = 'right'
-        # render call to create viewer window (necessary only for interactive policies)
-        env.render()
-        # create interactive policies for one agent
-        policy = InteractivePolicy(env, -1)
-        # execution loop
-        obs_n = env.reset()
         while True:
-            # query for action from each agent's policy
-            act_n = [agent.action(obs) for agent, obs in zip(trainers, obs_n)]  # trained policy
-            act_n[-1] = policy.action(obs_n[-1])  # interactive keyboard policy
-            # step environment
-            new_obs_n, reward_n, done_n, _ = env.step(act_n)
+            # get action
+            action_n = [agent.action(obs) for agent, obs in zip(trainers,obs_n)]
+            # environment step
+            new_obs_n, rew_n, done_n, info_n = env.step(action_n)
             episode_step += 1
             done = all(done_n)
             terminal = (episode_step >= arglist.max_episode_len)
-
             # collect experience
             for i, agent in enumerate(trainers):
-                agent.experience(obs_n[i], act_n[i], reward_n[i], new_obs_n[i], done_n[i], terminal)
+                agent.experience(obs_n[i], action_n[i], rew_n[i], new_obs_n[i], done_n[i], terminal)
             obs_n = new_obs_n
 
-            for i, rew in enumerate(reward_n):
+            for i, rew in enumerate(rew_n):
                 episode_rewards[-1] += rew
                 agent_rewards[i][-1] += rew
 
@@ -172,8 +160,9 @@ def play(arglist):
 
             # for benchmarking learned policies
             if arglist.benchmark:
-                for i, info in enumerate(_):
-                    agent_info[-1][i].append(_['n'])
+                for i, info in enumerate(info_n):
+                    info_n['n'].append(terminal)
+                    agent_info[-1][i].append(info_n['n'])
                 if train_step > arglist.benchmark_iters and (done or terminal):
                     file_name = arglist.benchmark_dir + arglist.exp_name + '.pkl'
                     print('Finished benchmarking, now saving...')
@@ -182,12 +171,11 @@ def play(arglist):
                     break
                 continue
 
-            # render all agent views
-            time.sleep(arglist.delay)
-            env.render()
-            # display rewards
-            for agent in env.world.agents:
-                pass  # print(agent.name + " reward: %0.3f" % env._get_reward(agent))
+            # for displaying learned policies
+            if arglist.display:
+                time.sleep(arglist.delay)
+                env.render()
+                continue
 
             # update all trainers, if not in display or benchmark mode
             loss = None
@@ -202,14 +190,11 @@ def play(arglist):
                 # print statement depends on whether or not there are adversaries
                 if num_adversaries == 0:
                     print("steps: {}, episodes: {}, mean episode reward: {}, time: {}".format(
-                        train_step, len(episode_rewards), np.mean(episode_rewards[-arglist.save_rate:]),
-                        round(time.time() - t_start, 3)))
+                        train_step, len(episode_rewards), np.mean(episode_rewards[-arglist.save_rate:]), round(time.time()-t_start, 3)))
                 else:
-                    print(
-                        "steps: {}, episodes: {}, mean episode reward: {}, agent episode reward: {}, time: {}".format(
-                            train_step, len(episode_rewards), np.mean(episode_rewards[-arglist.save_rate:]),
-                            [np.mean(rew[-arglist.save_rate:]) for rew in agent_rewards],
-                            round(time.time() - t_start, 3)))
+                    print("steps: {}, episodes: {}, mean episode reward: {}, agent episode reward: {}, time: {}".format(
+                        train_step, len(episode_rewards), np.mean(episode_rewards[-arglist.save_rate:]),
+                        [np.mean(rew[-arglist.save_rate:]) for rew in agent_rewards], round(time.time()-t_start, 3)))
                 t_start = time.time()
                 # Keep track of final episode reward
                 final_ep_rewards.append(np.mean(episode_rewards[-arglist.save_rate:]))
@@ -230,14 +215,5 @@ def play(arglist):
 
 
 if __name__ == '__main__':
-    time.sleep(2)
-    # parse arguments
-    args = parse_args()
-    play(args)
-
-
-
-
-
-
-
+    arglist = parse_args()
+    train(arglist)
